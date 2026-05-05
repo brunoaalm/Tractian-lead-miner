@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tractian — ICP Lead Miner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+
+<!-- ── TOPBAR ──────────────────────────────────────────────── -->
+<nav class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="317.35 452.61 1285.3 174.78" xmlns="http://www.w3.org/2000/svg">
+      <path d="m317.35 494.14v-37.72h151.16v37.72h-51.56v130.81h-47.76v-130.81zm284.42 77.88c10.31-5.16 18.45-11.94 24.43-21.17 5.7-9.23 8.68-19.81 8.68-32.02 0-12.48-3.26-23.61-9.23-33.11-6.24-9.5-14.93-16.55-26.05-21.71-11.4-5.16-24.7-7.6-39.62-7.6h-77.08v37.45h74.09c9.5 0 17.1 2.17 22.25 6.51 4.89 4.34 7.6 10.58 7.6 18.18 0 7.87-2.71 13.84-7.6 18.18-5.16 4.34-12.48 6.24-22.25 6.24h-74.09v81.69h47.76v-44.78h26.05l30.67 44.78h51.02zm170.43-115.61h-46.95l-74.63 168.53h48.85l13.3-32.84 13.84-35.28 21.71-54.01 21.71 54.01 13.84 35.28 13.3 32.84h49.66zm112.08 159.85c13.84 7.6 29.85 11.13 47.76 11.13 15.47 0 29.04-2.71 41.79-8.14 12.21-5.43 22.53-13.3 30.94-23.61l-30.4-27.41c-11.13 13.3-24.43 19.81-39.62 19.81-9.23 0-17.37-1.9-24.7-5.97-7.33-3.8-12.76-9.5-16.55-16.83-3.8-7.33-5.7-15.74-5.7-25.24s1.9-17.91 5.7-24.97c3.8-7.33 9.5-13.03 16.55-17.1 7.33-3.8 15.47-5.97 24.7-5.97 15.47 0 28.77 6.78 39.62 19.81l30.4-27.41c-8.14-10.04-18.45-18.18-30.94-23.61-12.48-5.43-26.32-8.14-41.79-8.14-17.91 0-33.65 3.8-47.76 11.4-13.84 7.6-24.97 17.91-33.11 30.94-8.14 13.57-11.94 28.5-11.94 45.32s3.8 32.02 11.94 45.32c8.14 13.03 19.27 23.34 33.11 30.67zm179.66-122.12v130.81h47.76v-130.81h51.56v-37.72h-150.89v37.72zm113.71-37.73v168.53h47.76v-168.53zm179.66 0h-46.95l-74.36 168.53h48.58l13.3-32.84 13.84-35.28 21.71-54.01 21.71 54.01 13.84 35.28 13.3 32.84h49.66zm85.49 58.62 46.68 59.43-.27 50.48h-46.68zm113.17-58.62h46.68l-.27 104.76-46.68-56.45zm0 89.83 46.68 59.43v19.54h-39.35l-74.36-89.83-46.68-56.45v-22.53h39.35z" fill="#0050e8"/>
+    </svg>
+  </div>
+  <div class="topbar-right">
+    <span class="topbar-badge">ICP Lead Miner</span>
+    <span class="topbar-meta">Base RFB · Abr/2026</span>
+  </div>
+</nav>
+
+<!-- ── BODY ────────────────────────────────────────────────── -->
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div>
+      <div class="field-label">Estado (UF)</div>
+      <select id="uf">
+        <option value="">🇧🇷 Todo Brasil</option>
+        <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+        <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+        <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+        <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+        <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+        <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+        <option>SP</option><option>SE</option><option>TO</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="field-label">
+        Segmentos (CNAE)
+        <span class="count-badge" id="cnaeBadge">0/5</span>
+      </div>
+      <div class="dropdown-wrap">
+        <input class="search-input" type="text" id="cnaeInput"
+          placeholder="Buscar código ou setor..."
+          autocomplete="off"
+          oninput="filtrarDropdown()"
+          onfocus="abrirDropdown()">
+        <div class="dropdown" id="dropdown"></div>
+      </div>
+      <div class="limit-warn" id="limitWarn">⚠ Limite de 5 CNAEs atingido</div>
+      <div class="tags-area" id="tagsArea">
+        <div class="empty-tags">Nenhum CNAE selecionado</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <button class="btn btn-primary" id="btnBuscar" onclick="executarBusca()">
+        ⚡ Buscar Leads
+      </button>
+      <button class="btn btn-export" id="btnExport" onclick="exportarCSV()">
+        ↓ Exportar CSV
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- CONTENT -->
+  <div class="content" id="content">
+
+    <div class="state-box" id="stateInicial">
+      <div class="state-icon">🏭</div>
+      <p>Selecione os filtros ao lado e clique em <strong>Buscar Leads</strong> para iniciar.</p>
+    </div>
+
+    <div class="state-box hidden" id="stateLoading">
+      <div class="spinner"></div>
+      <p>Consultando base local com 70 milhões de registros...</p>
+    </div>
+
+    <div class="state-box hidden" id="stateVazio">
+      <div class="state-icon">🔍</div>
+      <p>Nenhum lead encontrado. Tente outros CNAEs ou remova o filtro de UF.</p>
+    </div>
+
+    <div class="hidden" id="stateResultados" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+
+      <div class="results-header">
+        <div>
+          <div class="results-title">Resultados da busca</div>
+          <div class="results-count" id="resultsCount"></div>
+        </div>
+        <div class="result-search-wrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input class="search-input result-search" type="text" id="resultSearch"
+            placeholder="Filtrar resultados..."
+            oninput="filtrarResultados()">
+        </div>
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" onclick="ordenar('razao_social')" id="th-razao_social">
+                Empresa
+                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
+              <th>CNPJ</th>
+              <th class="sortable" onclick="ordenar('municipio')" id="th-municipio">
+                Localização
+                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
+              <th class="sortable" onclick="ordenar('porte_empresa')" id="th-porte_empresa">
+                Porte
+                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
+              <th class="sortable" onclick="ordenar('cnae_principal')" id="th-cnae_principal">
+                CNAE
+                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
+              <th>Contato</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination" id="pagination">
+        <div class="pag-info" id="pagInfo"></div>
+        <div class="pag-controls" id="pagControls"></div>
+        <div class="pag-jump">
+          Ir para página
+          <input type="number" id="jumpInput" min="1" value="1">
+          <button onclick="irParaPagina()">→</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ── FOOTER ───────────────────────────────────────────────── -->
+<footer class="footer">
+  <div>
+    Dados: <strong>Receita Federal do Brasil</strong> · Base aberta CNPJ · Atualizada em Abr/2026
+  </div>
+  <div class="footer-credits">
+    Desenvolvido por <strong>Bruno Almeida</strong> ·
+    <a href="mailto:bruno.almeida@tractian.com" target="_blank">bruno.almeida@tractian.com</a> ·
+    <a href="https://www.linkedin.com/in/brunoaalm/" target="_blank">LinkedIn</a>
+  </div>
+</footer>
+
+<!-- JS: ordem importa — cnaes antes dos outros módulos -->
+<script src="/static/js/cnaes.js"></script>
+<script src="/static/js/dropdown.js"></script>
+<script src="/static/js/tabela.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
