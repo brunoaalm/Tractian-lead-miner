@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flask-app",
+      "runtimeExecutable": "venv/bin/flask",
+      "runtimeArgs": ["run", "-p", "8080"],
+      "port": 8080,
+      "env": {
+        "FLASK_APP": "app.py"
+      }
+    }
+  ]
+}

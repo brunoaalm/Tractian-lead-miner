@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0050e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Tractian — ICP Lead Miner</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/app.css">
@@ -25,23 +27,42 @@
 <!-- ── BODY ────────────────────────────────────────────────── -->
 <div class="app-body">
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <!-- TOGGLE MOBILE (só aparece em telas pequenas) -->
+  <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+    <span>🔍 Filtros de busca</span>
+    <div class="sidebar-toggle-badges">
+      <span class="count-badge" id="toggleCnaeBadge" style="display:none"></span>
+      <span class="count-badge" id="toggleUfBadge" style="display:none"></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
+    </div>
+  </div>
 
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- UF -->
     <div>
-      <div class="field-label">Estado (UF)</div>
-      <select id="uf">
-        <option value="">🇧🇷 Todo Brasil</option>
-        <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
-        <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
-        <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
-        <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
-        <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
-        <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
-        <option>SP</option><option>SE</option><option>TO</option>
-      </select>
+      <div class="field-label">
+        Estados (UF)
+        <span class="count-badge" id="ufBadge">0/5</span>
+      </div>
+      <div class="dropdown-wrap">
+        <input class="search-input" type="text" id="ufInput"
+          placeholder="Buscar estado ou sigla..."
+          autocomplete="off"
+          oninput="filtrarUf()"
+          onfocus="abrirUfDropdown()">
+        <div class="dropdown" id="ufDropdown"></div>
+      </div>
+      <div class="limit-warn" id="ufLimitWarn">⚠ Limite de 5 UFs atingido</div>
+      <div class="tags-area" id="ufTagsArea">
+        <div class="empty-tags">Todo Brasil</div>
+      </div>
     </div>
 
+    <!-- CNAE -->
     <div>
       <div class="field-label">
         Segmentos (CNAE)
@@ -61,8 +82,20 @@
       </div>
     </div>
 
+    <!-- PORTE -->
+    <div>
+      <div class="field-label">Porte da empresa</div>
+      <select id="porteSelect">
+        <option value="">Todos os portes</option>
+        <option value="01">ME — Micro Empresa</option>
+        <option value="03">EPP — Pequeno Porte</option>
+        <option value="05">Média / Grande</option>
+      </select>
+    </div>
+
     <div class="divider"></div>
 
+    <!-- AÇÕES -->
     <div>
       <button class="btn btn-primary" id="btnBuscar" onclick="executarBusca()">
         ⚡ Buscar Leads
@@ -72,6 +105,16 @@
       </button>
     </div>
 
+    <div class="divider"></div>
+
+    <!-- HISTÓRICO -->
+    <div>
+      <div class="field-label">Buscas recentes</div>
+      <div id="historicoLista">
+        <div class="empty-tags">Nenhuma busca recente</div>
+      </div>
+    </div>
+
   </aside>
 
   <!-- CONTENT -->
@@ -79,20 +122,20 @@
 
     <div class="state-box" id="stateInicial">
       <div class="state-icon">🏭</div>
-      <p>Selecione os filtros ao lado e clique em <strong>Buscar Leads</strong> para iniciar.</p>
+      <p>Selecione os filtros e clique em <strong>Buscar Leads</strong> para iniciar.</p>
     </div>
 
     <div class="state-box hidden" id="stateLoading">
       <div class="spinner"></div>
-      <p>Consultando base local com 70 milhões de registros...</p>
+      <p>Consultando base com 70 milhões de registros...</p>
     </div>
 
     <div class="state-box hidden" id="stateVazio">
       <div class="state-icon">🔍</div>
-      <p>Nenhum lead encontrado. Tente outros CNAEs ou remova o filtro de UF.</p>
+      <p>Nenhum lead encontrado. Tente outros CNAEs, remova o filtro de UF ou mude o porte.</p>
     </div>
 
-    <div class="hidden" id="stateResultados" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div class="hidden" id="stateResultados">
 
       <div class="results-header">
         <div>
@@ -114,21 +157,21 @@
           <thead>
             <tr>
               <th class="sortable" onclick="ordenar('razao_social')" id="th-razao_social">
-                Empresa
-                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+                Empresa <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
               </th>
               <th>CNPJ</th>
-              <th class="sortable" onclick="ordenar('municipio')" id="th-municipio">
-                Localização
-                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              <th class="sortable" onclick="ordenar('situacao_cadastral')" id="th-situacao_cadastral">
+                Status <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
               </th>
+              <th class="sortable" onclick="ordenar('municipio')" id="th-municipio">
+                Cidade <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
+              <th>Endereço</th>
               <th class="sortable" onclick="ordenar('porte_empresa')" id="th-porte_empresa">
-                Porte
-                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+                Porte <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
               </th>
               <th class="sortable" onclick="ordenar('cnae_principal')" id="th-cnae_principal">
-                CNAE
-                <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+                CNAE <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
               </th>
               <th>Contato</th>
             </tr>
@@ -137,37 +180,186 @@
         </table>
       </div>
 
-      <div class="pagination" id="pagination">
+      <div class="pagination">
         <div class="pag-info" id="pagInfo"></div>
         <div class="pag-controls" id="pagControls"></div>
         <div class="pag-jump">
-          Ir para página
+          Pág.
           <input type="number" id="jumpInput" min="1" value="1">
           <button onclick="irParaPagina()">→</button>
         </div>
       </div>
 
     </div>
+  </div>
+</div>
 
+<!-- ── MODAL ────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal" onclick="handleModalClick(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalEmpresa">—</div>
+        <div class="modal-sub" id="modalFantasia">—</div>
+      </div>
+      <button class="modal-close" onclick="fecharModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-badges">
+        <span id="modalSituacao"></span>
+        <span id="modalPorte"></span>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Identificação</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label>CNPJ</label>
+            <span class="mono" id="modalCnpj">—</span>
+          </div>
+          <div class="modal-field">
+            <label>CNAE Principal</label>
+            <span class="mono" id="modalCnae">—</span>
+          </div>
+          <div class="modal-field">
+            <label>Início das Atividades</label>
+            <span id="modalInicio">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Endereço Completo</div>
+        <div class="modal-field full">
+          <span id="modalEnd">—</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Contato</div>
+        <div class="modal-grid">
+          <div class="modal-field">
+            <label>Telefone 1</label>
+            <span id="modalTel1">—</span>
+          </div>
+          <div class="modal-field">
+            <label>Telefone 2</label>
+            <span id="modalTel2">—</span>
+          </div>
+          <div class="modal-field full">
+            <label>E-mail</label>
+            <span id="modalEmail">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title">Quadro Societário</div>
+        <div id="modalSocios">
+          <div class="modal-empty">Clique em uma empresa para ver os sócios</div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
 
 <!-- ── FOOTER ───────────────────────────────────────────────── -->
 <footer class="footer">
-  <div>
-    Dados: <strong>Receita Federal do Brasil</strong> · Base aberta CNPJ · Atualizada em Abr/2026
-  </div>
+  <div>Dados: <strong>Receita Federal do Brasil</strong> · Base CNPJ · Abr/2026</div>
   <div class="footer-credits">
-    Desenvolvido por <strong>Bruno Almeida</strong> ·
-    <a href="mailto:bruno.almeida@tractian.com" target="_blank">bruno.almeida@tractian.com</a> ·
-    <a href="https://www.linkedin.com/in/brunoaalm/" target="_blank">LinkedIn</a>
+    Dev: <strong>Bruno Almeida</strong> ·
+    <a href="mailto:bruno.almeida@tractian.com">Email</a> ·
+    <a href="https://www.linkedin.com/in/brunoaalm/" target="_blank">LinkedIn ↗</a>
   </div>
 </footer>
 
-<!-- JS: ordem importa — cnaes antes dos outros módulos -->
 <script src="/static/js/cnaes.js"></script>
 <script src="/static/js/dropdown.js"></script>
 <script src="/static/js/tabela.js"></script>
 <script src="/static/js/app.js"></script>
+<script>
+// Toggle sidebar mobile
+function toggleSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const toggle  = document.getElementById("sidebarToggle");
+  sidebar.classList.toggle("open");
+  toggle.classList.toggle("open");
+}
+
+// Fecha sidebar ao clicar fora (mobile)
+document.addEventListener("click", (e) => {
+  const sidebar = document.getElementById("sidebar");
+  const toggle  = document.getElementById("sidebarToggle");
+  if (
+    sidebar.classList.contains("open") &&
+    !sidebar.contains(e.target) &&
+    !toggle.contains(e.target) &&
+    window.innerWidth < 900
+  ) {
+    sidebar.classList.remove("open");
+    toggle.classList.remove("open");
+  }
+});
+
+// Fecha modal ao clicar no overlay
+function handleModalClick(e) {
+  if (e.target === document.getElementById("modal")) fecharModal();
+}
+
+// Atualiza badges do toggle mobile
+function atualizarToggleBadges() {
+  const cBadge = document.getElementById("toggleCnaeBadge");
+  const uBadge = document.getElementById("toggleUfBadge");
+  const cc = state.selecionados.size;
+  const uc = state.ufs.size;
+  cBadge.textContent = cc ? `${cc} CNAE${cc>1?"s":""}` : "";
+  cBadge.style.display = cc ? "inline-flex" : "none";
+  uBadge.textContent = uc ? `${uc} UF${uc>1?"s":""}` : "";
+  uBadge.style.display = uc ? "inline-flex" : "none";
+}
+
+// Sobrescreve renderSidebar para também atualizar badges mobile
+const _origRenderSidebar = window.renderSidebar;
+window.renderSidebar = function() {
+  if (_origRenderSidebar) _origRenderSidebar();
+  atualizarToggleBadges();
+};
+const _origRenderUfTags = window.renderUfTags;
+window.renderUfTags = function() {
+  if (_origRenderUfTags) _origRenderUfTags();
+  atualizarToggleBadges();
+};
+
+// stateResultados responsivo
+function mostrarEstadoResp(id) {
+  ["stateInicial","stateLoading","stateVazio","stateResultados"].forEach(s => {
+    const el = document.getElementById(s);
+    if (!el) return;
+    if (s === id) {
+      el.classList.remove("hidden");
+      if (s === "stateResultados") {
+        el.style.display = "flex";
+        el.style.flexDirection = "column";
+        el.style.flex = "1";
+        el.style.minHeight = "0";
+        el.style.overflow = "hidden";
+      }
+    } else {
+      el.classList.add("hidden");
+      if (s === "stateResultados") el.style.display = "none";
+    }
+  });
+  // Fecha sidebar no mobile após buscar
+  if (id === "stateResultados" && window.innerWidth < 900) {
+    document.getElementById("sidebar").classList.remove("open");
+    document.getElementById("sidebarToggle").classList.remove("open");
+  }
+}
+// Substituir mostrarEstado pelo responsivo
+window.mostrarEstado = mostrarEstadoResp;
+</script>
 </body>
 </html>

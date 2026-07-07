@@ -26,10 +26,5 @@ def index():
 
 
 if __name__ == "__main__":
-    print("\n🚀 Tractian Lead Miner")
-    print(f"   Acesse: http://localhost:{Config.PORT}\n")
-    app.run(
-        host="0.0.0.0",
-        port=Config.PORT,
-        debug=Config.DEBUG,
-    )
+    app.run(host='0.0.0.0', port=5000)
+    
