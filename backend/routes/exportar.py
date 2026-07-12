@@ -9,14 +9,15 @@ COLUNAS = [
     ("nome_fantasia",  "Nome Fantasia"),
     ("cnpj",           "CNPJ"),
     ("cnae_principal", "CNAE"),
+    ("fit_score",      "Fit Score"),
     ("porte_nome",     "Porte"),
     ("uf",             "UF"),
-    ("municipio",      "Município"),
+    ("municipio_nome", "Município"),
     ("logradouro",     "Logradouro"),
     ("numero",         "Número"),
     ("bairro",         "Bairro"),
     ("cep",            "CEP"),
-    ("telefone",       "Telefone"),
+    ("telefone1",      "Telefone"),
     ("email",          "E-mail"),
 ]
 

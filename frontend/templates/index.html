@@ -7,6 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Tractian — ICP Lead Miner</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
@@ -84,13 +85,15 @@
 
     <!-- PORTE -->
     <div>
-      <div class="field-label">Porte da empresa</div>
-      <select id="porteSelect">
-        <option value="">Todos os portes</option>
-        <option value="01">ME — Micro Empresa</option>
-        <option value="03">EPP — Pequeno Porte</option>
-        <option value="05">Média / Grande</option>
-      </select>
+      <div class="field-label">
+        Porte da empresa
+        <span class="count-badge" id="porteBadge">0/3</span>
+      </div>
+      <div class="porte-chips" id="porteChips">
+        <button type="button" class="porte-chip" data-porte="01" onclick="togglePorte('01')">ME</button>
+        <button type="button" class="porte-chip" data-porte="03" onclick="togglePorte('03')">EPP</button>
+        <button type="button" class="porte-chip" data-porte="05" onclick="togglePorte('05')">Média/Grande</button>
+      </div>
     </div>
 
     <div class="divider"></div>
@@ -113,6 +116,26 @@
       <div id="historicoLista">
         <div class="empty-tags">Nenhuma busca recente</div>
       </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- BUSCAS SALVAS -->
+    <div>
+      <div class="field-label">
+        Buscas salvas
+        <button class="btn-salvar-busca" id="btnSalvarBusca" onclick="salvarBuscaAtual()">💾 Salvar atual</button>
+      </div>
+      <div id="buscasSalvasLista">
+        <div class="empty-tags">Nenhuma busca salva</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- MINHAS LISTAS -->
+    <div>
+      <button class="btn btn-listas" onclick="abrirListas()">📋 Minhas Listas</button>
     </div>
 
   </aside>
@@ -142,6 +165,10 @@
           <div class="results-title">Resultados da busca</div>
           <div class="results-count" id="resultsCount"></div>
         </div>
+        <div class="view-tabs">
+          <button class="view-tab active" id="tabTabela" onclick="alternarView('tabela')">Tabela</button>
+          <button class="view-tab" id="tabMapa" onclick="alternarView('mapa')">Mapa</button>
+        </div>
         <div class="result-search-wrap">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -152,10 +179,25 @@
         </div>
       </div>
 
+      <div class="hidden" id="stateMapa">
+        <div class="mapa-legend-row">
+          <div class="mapa-legend" id="mapaLegend"></div>
+          <div class="view-tabs" id="mapaTabs">
+            <button class="view-tab active" onclick="alternarCamadaMapa('ruas', event)">Ruas</button>
+            <button class="view-tab" onclick="alternarCamadaMapa('satelite', event)">Satélite</button>
+          </div>
+        </div>
+        <div id="mapaContainer"></div>
+      </div>
+
       <div class="table-wrap" id="tableWrap">
         <table>
           <thead>
             <tr>
+              <th class="th-check"><input type="checkbox" id="checkAllRows" onchange="toggleSelecionarTodos()"></th>
+              <th class="sortable" onclick="ordenar('fit_score')" id="th-fit_score">
+                Fit <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
+              </th>
               <th class="sortable" onclick="ordenar('razao_social')" id="th-razao_social">
                 Empresa <span class="sort-icon"><span class="asc"></span><span class="desc"></span></span>
               </th>
@@ -190,6 +232,32 @@
         </div>
       </div>
 
+      <div class="floating-selection-bar hidden" id="floatingSelectionBar">
+        <div class="fsb-count" id="fsbCount">0 selecionadas</div>
+        <div class="dropdown-wrap fsb-dropdown-wrap">
+          <button class="btn btn-primary fsb-btn" onclick="toggleDropdownListas()">Adicionar à Lista ▾</button>
+          <div class="dropdown fsb-dropdown" id="dropdownListas"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MINHAS LISTAS (painel cheio, substitui o conteúdo) -->
+    <div class="hidden" id="stateListas">
+      <div class="results-header">
+        <div>
+          <div class="results-title">Minhas Listas</div>
+          <div class="results-count" id="listasCount"></div>
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:8px 16px" onclick="fecharListas()">← Voltar pra busca</button>
+      </div>
+
+      <div class="listas-body">
+        <div class="listas-coluna" id="listasColuna"></div>
+        <div class="lista-detalhe" id="listaDetalhe">
+          <div class="modal-empty">Selecione uma lista à esquerda pra ver os itens</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -210,6 +278,7 @@
       <div class="modal-badges">
         <span id="modalSituacao"></span>
         <span id="modalPorte"></span>
+        <span id="modalFit"></span>
       </div>
 
       <div>
@@ -262,6 +331,25 @@
         </div>
       </div>
 
+      <div>
+        <div class="modal-section-title">Estabelecimentos (Matriz/Filiais)</div>
+        <div id="modalEstabelecimentos">
+          <div class="modal-empty">Clique em uma empresa para ver os estabelecimentos</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="modal-section-title" style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Mapa da Planta</span>
+          <div class="view-tabs" id="modalMapaTabs">
+            <button class="view-tab active" onclick="alternarCamadaModalMapa('satelite', event)">Satélite</button>
+            <button class="view-tab" onclick="alternarCamadaModalMapa('ruas', event)">Ruas</button>
+          </div>
+        </div>
+        <div class="mapa-legend" id="modalMapaLegend"></div>
+        <div id="modalMapaContainer"></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -279,6 +367,10 @@
 <script src="/static/js/cnaes.js"></script>
 <script src="/static/js/dropdown.js"></script>
 <script src="/static/js/tabela.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/static/js/listas.js"></script>
+<script src="/static/js/buscas-salvas.js"></script>
+<script src="/static/js/mapa.js"></script>
 <script src="/static/js/app.js"></script>
 <script>
 // Toggle sidebar mobile
@@ -335,12 +427,12 @@ window.renderUfTags = function() {
 
 // stateResultados responsivo
 function mostrarEstadoResp(id) {
-  ["stateInicial","stateLoading","stateVazio","stateResultados"].forEach(s => {
+  ["stateInicial","stateLoading","stateVazio","stateResultados","stateListas"].forEach(s => {
     const el = document.getElementById(s);
     if (!el) return;
     if (s === id) {
       el.classList.remove("hidden");
-      if (s === "stateResultados") {
+      if (s === "stateResultados" || s === "stateListas") {
         el.style.display = "flex";
         el.style.flexDirection = "column";
         el.style.flex = "1";
@@ -349,7 +441,7 @@ function mostrarEstadoResp(id) {
       }
     } else {
       el.classList.add("hidden");
-      if (s === "stateResultados") el.style.display = "none";
+      if (s === "stateResultados" || s === "stateListas") el.style.display = "none";
     }
   });
   // Fecha sidebar no mobile após buscar

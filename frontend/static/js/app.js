@@ -2,6 +2,7 @@
 const state = {
   selecionados:  new Map(),  // cnae clean -> {code, desc}
   ufs:           new Set(),  // UFs selecionadas
+  portes:        new Set(),  // portes selecionados ("01","03","05")
   todos:         [],
   filtrados:     [],
   pagina:        1,
@@ -10,18 +11,21 @@ const state = {
   searchQuery:   "",
   dadosExport:   [],
   contagemCnae:  {},         // clean -> total
+  selecionadosLista: new Set(),        // chaves (cnpj) selecionadas via checkbox pra adicionar em lista
+  estabelecimentoEscolhido: new Map(), // cnpj_basico -> {cnpj_ordem, cnpj_dv, email, telefone1} (override do "Usar este contato")
+  viewMode: "tabela",                  // "tabela" | "mapa"
 };
 
 // ── HISTÓRICO ─────────────────────────────────────────────────
 const HISTORY_KEY = "tractian_search_history";
 const MAX_HISTORY = 3;
 
-function salvarHistorico(cnaes, ufs, porte, total) {
+function salvarHistorico(cnaes, ufs, portes, total) {
   const entry = {
     id:      Date.now(),
     cnaes,   // array de {clean, code, desc}
     ufs:     [...ufs],
-    porte,
+    portes:  [...portes],
     total,
     data:    new Date().toLocaleString("pt-BR"),
   };
@@ -64,12 +68,12 @@ function restaurarBusca(id) {
   h.cnaes.forEach(c => state.selecionados.set(c.clean, {code: c.code, desc: c.desc}));
   state.ufs.clear();
   h.ufs.forEach(u => state.ufs.add(u));
-
-  const porteEl = document.getElementById("porteSelect");
-  if (porteEl) porteEl.value = h.porte || "";
+  state.portes.clear();
+  (h.portes || []).forEach(p => state.portes.add(p));
 
   renderSidebar();
   renderUfTags();
+  renderPorteChips();
   executarBusca();
 }
 
@@ -99,14 +103,13 @@ async function executarBusca() {
   document.getElementById("btnBuscar").disabled = true;
 
   try {
-    const porte = document.getElementById("porteSelect")?.value || "";
     const res = await fetch("/buscar", {
       method:  "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         cnaes:  [...state.selecionados.keys()],
         ufs:    [...state.ufs],
-        porte,
+        portes: [...state.portes],
       }),
     });
 
@@ -123,7 +126,10 @@ async function executarBusca() {
     state.sortDir     = "asc";
     state.pagina      = 1;
     state.searchQuery = "";
+    state.selecionadosLista.clear();
+    state.estabelecimentoEscolhido.clear();
     document.getElementById("resultSearch").value = "";
+    if (typeof atualizarBarraSelecao === "function") atualizarBarraSelecao();
 
     // Atualizar badges de contagem nas tags de CNAE
     renderSidebar();
@@ -132,7 +138,7 @@ async function executarBusca() {
     salvarHistorico(
       [...state.selecionados.entries()].map(([clean, v]) => ({clean, ...v})),
       state.ufs,
-      porte,
+      state.portes,
       data.length
     );
 
@@ -141,6 +147,7 @@ async function executarBusca() {
     } else {
       mostrarEstado("stateResultados");
       renderTabela();
+      if (typeof alternarView === "function") alternarView("tabela");
     }
 
     document.getElementById("btnExport").classList.toggle("show", data.length > 0);
@@ -177,5 +184,6 @@ async function exportarCSV() {
 document.addEventListener("DOMContentLoaded", () => {
   initDropdown();
   renderHistorico();
+  carregarBuscasSalvasServidor();
   mostrarEstado("stateInicial");
 });

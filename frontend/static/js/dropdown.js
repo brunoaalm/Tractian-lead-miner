@@ -15,6 +15,21 @@ function initDropdown() {
     }
   });
   renderUfTags();
+  renderPorteChips();
+}
+
+// ── PORTE (multi-seleção) ─────────────────────────────────────
+function togglePorte(codigo) {
+  if (state.portes.has(codigo)) state.portes.delete(codigo);
+  else state.portes.add(codigo);
+  renderPorteChips();
+}
+
+function renderPorteChips() {
+  document.getElementById("porteBadge").textContent = `${state.portes.size}/3`;
+  document.querySelectorAll("#porteChips .porte-chip").forEach(btn => {
+    btn.classList.toggle("sel", state.portes.has(btn.dataset.porte));
+  });
 }
 
 // ── UF DROPDOWN ───────────────────────────────────────────────

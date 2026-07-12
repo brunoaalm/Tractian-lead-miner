@@ -1,6 +1,11 @@
 // Tabela: render, paginação, ordenação, highlight, modal
 const PER_PAGE = 50;
 
+// Token da abertura de modal mais recente — evita que uma resposta de rede
+// atrasada (sócios/estabelecimentos/mapa) de uma empresa anterior "pise" no
+// modal de uma empresa aberta depois, se o usuário clicar rápido entre elas.
+let _modalToken = 0;
+
 function porteBadge(p) {
   const map = {
     "01": ["ME", "badge-me"], "1": ["ME", "badge-me"],
@@ -9,6 +14,15 @@ function porteBadge(p) {
   };
   const [label, cls] = map[String(p)] || ["—", "badge-outros"];
   return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function fitBadge(score) {
+  const n = Number(score) || 0;
+  let label, cls;
+  if (n >= 70)      { label = "Alto";  cls = "badge-fit-alto"; }
+  else if (n >= 40) { label = "Médio"; cls = "badge-fit-medio"; }
+  else              { label = "Baixo"; cls = "badge-fit-baixo"; }
+  return `<span class="badge ${cls}" title="Fit score: ${n}/100">${label} · ${n}</span>`;
 }
 
 function situacaoBadge(s) {
@@ -37,7 +51,7 @@ function filtrarResultados() {
         (r.razao_social || "").toLowerCase().includes(q) ||
         (r.nome_fantasia || "").toLowerCase().includes(q) ||
         (r.cnpj || "").includes(q) ||
-        (r.municipio || "").toLowerCase().includes(q) ||
+        (r.municipio_nome || r.municipio || "").toLowerCase().includes(q) ||
         (r.email || "").toLowerCase().includes(q) ||
         (r.bairro || "").toLowerCase().includes(q)
       )
@@ -64,14 +78,50 @@ function ordenar(col) {
   renderTabela();
 }
 
+const COLUNAS_NUMERICAS = new Set(["fit_score"]);
+
 function aplicarOrdem() {
+  const numerica = COLUNAS_NUMERICAS.has(state.sortCol);
   state.filtrados.sort((a, b) => {
+    if (numerica) {
+      const va = Number(a[state.sortCol]) || 0;
+      const vb = Number(b[state.sortCol]) || 0;
+      return state.sortDir === "asc" ? va - vb : vb - va;
+    }
     const va = (a[state.sortCol] || "").toString().toLowerCase();
     const vb = (b[state.sortCol] || "").toString().toLowerCase();
     return state.sortDir === "asc"
       ? va.localeCompare(vb, "pt")
       : vb.localeCompare(va, "pt");
   });
+}
+
+// ── SELEÇÃO PARA LISTAS ───────────────────────────────────────
+function chaveRow(r) {
+  return r.cnpj_basico;
+}
+
+function toggleSelecaoLinha(chave) {
+  if (state.selecionadosLista.has(chave)) {
+    state.selecionadosLista.delete(chave);
+  } else {
+    state.selecionadosLista.add(chave);
+  }
+  document.getElementById("checkAllRows").checked = false;
+  if (typeof atualizarBarraSelecao === "function") atualizarBarraSelecao();
+}
+
+function toggleSelecionarTodos() {
+  const marcarTodos = document.getElementById("checkAllRows").checked;
+  const start = (state.pagina - 1) * PER_PAGE;
+  const slice = state.filtrados.slice(start, start + PER_PAGE);
+  slice.forEach(r => {
+    const chave = chaveRow(r);
+    if (marcarTodos) state.selecionadosLista.add(chave);
+    else state.selecionadosLista.delete(chave);
+  });
+  renderTabela();
+  if (typeof atualizarBarraSelecao === "function") atualizarBarraSelecao();
 }
 
 function renderTabela() {
@@ -84,6 +134,10 @@ function renderTabela() {
 
   document.getElementById("tbody").innerHTML = slice.map((r, idx) => `
     <tr onclick="abrirModal(${start + idx})" style="cursor:pointer">
+      <td class="td-check" onclick="event.stopPropagation()">
+        <input type="checkbox" onchange="toggleSelecaoLinha('${chaveRow(r)}')" ${state.selecionadosLista.has(chaveRow(r)) ? "checked" : ""}>
+      </td>
+      <td>${fitBadge(r.fit_score)}</td>
       <td class="td-empresa">
         <div class="razao">${highlight(r.razao_social, q) || '<span class="nd">—</span>'}</div>
         ${r.nome_fantasia ? `<div class="fantasia">${highlight(r.nome_fantasia, q)}</div>` : ""}
@@ -91,7 +145,7 @@ function renderTabela() {
       <td class="td-cnpj">${highlight(r.cnpj, q)}</td>
       <td>${situacaoBadge(r.situacao_cadastral)}</td>
       <td class="td-loc">
-        <div>${highlight(r.municipio, q) || "—"} <span class="uf-badge">${r.uf || ""}</span></div>
+        <div>${highlight(r.municipio_nome || r.municipio, q) || "—"} <span class="uf-badge">${r.uf || ""}</span></div>
         <div class="td-loc-sub">${highlight(r.bairro, q) || ""}</div>
       </td>
       <td class="td-end">
@@ -156,6 +210,7 @@ function abrirModal(idx) {
   const r = state.filtrados[idx];
   if (!r) return;
 
+  const meuToken = ++_modalToken;
   const cnpj_basico = r.cnpj ? r.cnpj.replace(/\D/g,"").slice(0,8) : "";
 
   document.getElementById("modalEmpresa").textContent   = r.razao_social || "—";
@@ -164,9 +219,10 @@ function abrirModal(idx) {
   document.getElementById("modalCnae").textContent      = r.cnae_principal || "—";
   document.getElementById("modalSituacao").innerHTML    = situacaoBadge(r.situacao_cadastral);
   document.getElementById("modalPorte").innerHTML       = porteBadge(r.porte_empresa);
+  document.getElementById("modalFit").innerHTML         = fitBadge(r.fit_score);
   document.getElementById("modalInicio").textContent    = r.data_inicio_atividade || "—";
   document.getElementById("modalEnd").textContent       =
-    [r.logradouro, r.numero, r.complemento, r.bairro, r.municipio, r.uf, r.cep]
+    [r.logradouro, r.numero, r.complemento, r.bairro, r.municipio_nome || r.municipio, r.uf, r.cep]
       .filter(Boolean).join(", ") || "—";
   document.getElementById("modalTel1").textContent      = r.telefone1 || "—";
   document.getElementById("modalTel2").textContent      = r.telefone2 || "—";
@@ -176,6 +232,10 @@ function abrirModal(idx) {
   const sociosEl = document.getElementById("modalSocios");
   sociosEl.innerHTML = '<div class="modal-loading">Carregando sócios...</div>';
 
+  // Estabelecimentos (matriz/filiais)
+  const estabsEl = document.getElementById("modalEstabelecimentos");
+  estabsEl.innerHTML = '<div class="modal-loading">Carregando estabelecimentos...</div>';
+
   document.getElementById("modal").classList.add("open");
   document.body.style.overflow = "hidden";
 
@@ -184,6 +244,7 @@ function abrirModal(idx) {
     fetch(`/socios/${cnpj_basico}`)
       .then(r => r.json())
       .then(socios => {
+        if (meuToken !== _modalToken) return; // modal já trocou de empresa, ignora resposta atrasada
         if (!socios.length) {
           sociosEl.innerHTML = '<div class="modal-empty">Nenhum sócio encontrado</div>';
           return;
@@ -191,13 +252,65 @@ function abrirModal(idx) {
         sociosEl.innerHTML = socios.map(s => `
           <div class="socio-item">
             <div class="socio-nome">${s.nome_socio || "—"}</div>
-            <div class="socio-meta">${s.qualificacao_socio || "—"} · Entrada: ${s.data_entrada || "—"}</div>
+            <div class="socio-meta">${s.cargo || s.qualificacao_socio || "—"} · Entrada: ${s.data_entrada || "—"}</div>
           </div>`).join("");
       })
       .catch(() => {
+        if (meuToken !== _modalToken) return;
         sociosEl.innerHTML = '<div class="modal-empty">Erro ao carregar sócios</div>';
       });
+
+    // Buscar estabelecimentos (matriz + filiais)
+    fetch(`/estabelecimentos/${cnpj_basico}`)
+      .then(r => r.json())
+      .then(estabs => {
+        if (meuToken !== _modalToken) return; // modal já trocou de empresa, ignora resposta atrasada
+        renderEstabelecimentos(estabsEl, cnpj_basico, estabs);
+        renderModalMapa(r.razao_social, estabs, meuToken);
+      })
+      .catch(() => {
+        if (meuToken !== _modalToken) return;
+        estabsEl.innerHTML = '<div class="modal-empty">Erro ao carregar estabelecimentos</div>';
+      });
   }
+}
+
+function renderEstabelecimentos(estabsEl, cnpj_basico, estabs) {
+  if (!estabs.length) {
+    estabsEl.innerHTML = '<div class="modal-empty">Nenhum estabelecimento encontrado</div>';
+    return;
+  }
+  const escolhido = state.estabelecimentoEscolhido.get(cnpj_basico);
+  estabsEl.innerHTML = estabs.map(e => {
+    const usandoEste = escolhido && escolhido.cnpj_ordem === e.cnpj_ordem;
+    return `
+    <div class="estab-item ${usandoEste ? "estab-escolhido" : ""}">
+      <div class="estab-header">
+        <span class="badge ${e.is_matriz ? "badge-matriz" : "badge-filial"}">${e.is_matriz ? "Matriz" : "Filial"}</span>
+        <span class="estab-endereco">${[e.logradouro, e.numero, e.bairro, e.municipio_nome || e.municipio, e.uf].filter(Boolean).join(", ") || "—"}</span>
+      </div>
+      <div class="estab-contato">
+        <span>${e.telefone1 || "—"}</span>
+        <span>${e.email || "—"}</span>
+      </div>
+      <button class="btn-usar-contato" onclick='escolherEstabelecimentoContato(${JSON.stringify(cnpj_basico)}, ${JSON.stringify(e)})'>
+        ${usandoEste ? "✓ Usando este contato" : "Usar este contato"}
+      </button>
+    </div>`;
+  }).join("");
+}
+
+function escolherEstabelecimentoContato(cnpj_basico, estabelecimento) {
+  state.estabelecimentoEscolhido.set(cnpj_basico, {
+    cnpj_ordem: estabelecimento.cnpj_ordem,
+    cnpj_dv:    estabelecimento.cnpj_dv,
+    email:      estabelecimento.email,
+    telefone1:  estabelecimento.telefone1,
+  });
+  // Re-renderiza pra marcar visualmente qual está escolhido
+  fetch(`/estabelecimentos/${cnpj_basico}`)
+    .then(r => r.json())
+    .then(estabs => renderEstabelecimentos(document.getElementById("modalEstabelecimentos"), cnpj_basico, estabs));
 }
 
 function fecharModal() {
