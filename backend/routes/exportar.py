@@ -1407,36 +1407,95 @@ def _buscar_cnaes_secundarios(cnpj_basico: str) -> list:
         return []
 
 
+def _buscar_socios_batch(cnpjs: list) -> dict:
+    """Busca sócios de todos os CNPJs em uma única query. Retorna dict cnpj -> str."""
+    if not cnpjs:
+        return {}
+    try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT cnpj_basico,
+                   nome_socio,
+                   qualificacao_socio,
+                   cargo
+            FROM socios
+            WHERE cnpj_basico = ANY(%s)
+            ORDER BY cnpj_basico, data_entrada DESC
+            """,
+            ([c.zfill(8) for c in cnpjs],)
+        )
+        rows = cur.fetchall()
+        conn.close()
+    except Exception:
+        return {}
+
+    result = {}
+    for r in rows:
+        key = r["cnpj_basico"]
+        nome = (r.get("nome_socio") or "").strip()
+        qual = (r.get("cargo") or r.get("qualificacao_socio") or "").strip()
+        entry = f"{nome} ({qual})" if qual else nome
+        if key in result:
+            result[key].append(entry)
+        else:
+            result[key] = [entry]
+    return {k: " | ".join(v) for k, v in result.items()}
+
+
+def _buscar_cnaes_secundarios_batch(cnpjs: list) -> dict:
+    """Busca CNAEs secundários de todos os CNPJs em uma única query. Retorna dict cnpj -> str."""
+    if not cnpjs:
+        return {}
+    try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT cnpj_basico, cnae_secundario
+            FROM cnae_secundario
+            WHERE cnpj_basico = ANY(%s)
+            """,
+            ([c.zfill(8) for c in cnpjs],)
+        )
+        rows = cur.fetchall()
+        conn.close()
+    except Exception:
+        return {}
+
+    result = {}
+    for r in rows:
+        key = r["cnpj_basico"]
+        val = r.get("cnae_secundario") or ""
+        if val:
+            result.setdefault(key, []).append(val)
+    return {k: " | ".join(v) for k, v in result.items()}
+
+
 @exportar_bp.route("/exportar", methods=["POST"])
 def exportar():
     dados = request.get_json(silent=True) or []
     if not dados:
         return jsonify({"error": "Nenhum dado para exportar."}), 400
 
-    # Enriquece cada linha com sócios e CNAEs secundários
+    # Coleta todos os CNPJs únicos
+    cnpjs = list({str(r.get("cnpj_basico", "") or "").strip() for r in dados if r.get("cnpj_basico")})
+
+    # Busca em batch — 2 queries no total independente do volume
+    socios_map   = _buscar_socios_batch(cnpjs)
+    cnaes_sec_map = _buscar_cnaes_secundarios_batch(cnpjs)
+
+    # Enriquece cada linha
     linhas_enriquecidas = []
     for row in dados:
-        cnpj_basico = str(row.get("cnpj_basico", "") or "").strip()
-
-        # Sócios: "NOME (Cargo) | NOME2 (Cargo2)"
-        socios_raw = buscar_socios(cnpj_basico) if cnpj_basico else []
-        socios_str = " | ".join(
-            f"{s.get('nome_socio', '').strip()} ({s.get('cargo', '') or s.get('qualificacao_socio', '')})"
-            for s in socios_raw
-        ) if socios_raw else ""
-
-        # CNAEs secundários: "1234500 | 9876500"
-        cnaes_sec = _buscar_cnaes_secundarios(cnpj_basico) if cnpj_basico else []
-        cnaes_sec_str = " | ".join(cnaes_sec)
-
-        # Descrição do CNAE principal
+        cnpj_basico   = str(row.get("cnpj_basico", "") or "").strip().zfill(8)
         cnae_principal = str(row.get("cnae_principal", "") or "").strip()
-        cnae_desc = CNAE_DESC.get(cnae_principal, "")
 
         linha = dict(row)
-        linha["socios"]             = socios_str
-        linha["cnaes_secundarios"]  = cnaes_sec_str
-        linha["cnae_desc"]          = cnae_desc
+        linha["socios"]            = socios_map.get(cnpj_basico, "")
+        linha["cnaes_secundarios"] = cnaes_sec_map.get(cnpj_basico, "")
+        linha["cnae_desc"]         = CNAE_DESC.get(cnae_principal, "")
         linhas_enriquecidas.append(linha)
 
     output = io.StringIO()
