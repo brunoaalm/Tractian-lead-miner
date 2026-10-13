@@ -1,6 +1,6 @@
 // Gerencia dropdowns de CNAE e UF, filtro de porte
-const MAX_CNAE = 5;
-const MAX_UF   = 5;
+const MAX_CNAE = 50;
+const MAX_UF   = 27;
 
 const UFS_BR = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA",
